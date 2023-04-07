@@ -1,0 +1,206 @@
+---
+title: "MLR-and-Supervised_ML"
+author: "Archit Raj"
+date: '2023-04-04'
+output: html_document
+---
+
+Importing libraries
+
+```{r}
+# Load necessary libraries
+library(readr)
+install.packages("readxl")
+library(readxl)
+install.packages("BBmisc")
+library(BBmisc)
+install.packages('Hmisc')
+library(Hmisc)
+```
+
+Loading the dataset
+
+```{r}
+df<- read_excel("Train.xlsx")
+head(df)
+```
+
+Summary of the dataset
+
+```{r}
+summary(df)
+```
+
+Getting the summary based on the structure
+
+```{r}
+# Display the structure of the data frame
+my_df <- str(df)
+
+# Display the summary of the data frame
+summary(my_df)
+```
+
+Analyzing the dimensions of the dataset
+
+```{r}
+ my_df_dim <- dim(df)
+
+# Display the dimensions
+cat("Rows:", my_df_dim[1], "Columns:", my_df_dim[2])
+```
+
+Visualization: boxplot
+
+```{r}
+
+boxplot(df, main = "Boxplot of My Data", xlab = "My Data", ylab = "Values")
+```
+
+Replacing the outliers
+```{r}
+library(purrr)
+library(dplyr)
+
+replaceOuts = function(df) {
+  map_if(df, is.numeric, 
+         ~ replace(.x, .x %in% boxplot.stats(.x)$out, median(.x))) %>%
+    bind_cols 
+}
+newdf<-replaceOuts(df[,1:11])
+```
+
+boxplot
+
+```{r}
+boxplot(newdf, main = "Boxplot of My Data", xlab = "My Data", ylab = "Values")
+```
+
+Method: Range for Normalization
+
+```{r}
+scaled_df = normalize(newdf[,1:11], method = "range", range = c(0, 1))
+
+summary(scaled_df)
+scaled_df
+```
+
+Normalized Data frame
+
+```{r}
+df1<-data.frame(scaled_df,Y=df$Y)
+df1
+boxplot(df1[,1:11], main = "Boxplot of My Data", xlab = "My Data", ylab = "Values")
+```
+
+Visualization: Correlation Plot
+
+```{r}
+#Loading Correlation Library 
+install.packages("corrplot")
+library(corrplot)
+
+data(df1) 
+cor_matrix <- cor(df1)  # Compute the correlation matrix
+corrplot(cor_matrix, method = "color", addCoef.col = "black", number.cex = 0.8, number.digits = 2)
+```
+
+Finding the most correlated features based on the correlation plot
+
+```{r}
+max_cor <- cor_matrix
+diag(max_cor) <- 0  # Set diagonal elements to 0, to ignore self-correlations
+max_cor[upper.tri(max_cor, diag = FALSE)] <- 0  # Set upper triangular elements to 0, to ignore duplicate pairs
+
+# Identify the row and column index of the highest correlation value
+index <- which.max(abs(max_cor))
+row_index <- row(max_cor)[index]
+col_index <- col(max_cor)[index]
+
+# Get the feature names and the highest correlation value
+feature1 <- colnames(max_cor)[row_index]
+feature2 <- colnames(max_cor)[col_index]
+highest_correlation <- max_cor[row_index, col_index]
+
+cat("Most highly correlated features:\n", feature1, "and", feature2, "\nCorrelation value:", highest_correlation)
+```
+
+Dropping the correlated values
+
+```{r}
+df1_clean <- df1[, !names(df1) %in% c("X1", "X3")]
+# Remove rows with missing data
+df1_clean <- na.omit(df1)
+
+```
+
+Creating Train and Test dataset with a 80/20 ratio
+
+```{r}
+# Loading the libraries
+install.packages("caret")
+library(caret)
+
+
+# Set the seed for reproducibility
+set.seed(123)
+
+# Create a stratified partition
+trainIndex <- createDataPartition(df1_clean$Y, p = 0.8, list = FALSE)
+
+# Split the dataset into training and testing sets
+train_set <- df1_clean[trainIndex, ]
+test_set <- df1_clean[-trainIndex, ]
+
+```
+
+Comparing Multiple Models 
+
+1. Multinomial Logistic Regression
+```{r}
+# Fit a multinomial logistic regression model
+multinom_model <- nnet::multinom(Y ~ ., data = train_set, maxit = 1000)
+
+# Make predictions on the testing set
+predicted_classes <- predict(multinom_model, test_set)
+
+# Calculate the accuracy
+accuracy <- sum(predicted_classes == test_set$Y) / nrow(test_set)
+print(paste("Multinomial logistic regression Test Data Accuracy:", accuracy))
+```
+2. Random Forest
+```{r}
+# rf_model <- randomForest(Y ~ ., data = train_set)
+# rf_pred <- predict(rf_model, test_set)
+# rf_accuracy <- sum(rf_pred == test_set$Y) / nrow(test_set)
+# print(paste("Random Forest Test Data Accuracy:", rf_accuracy))
+
+```
+
+3. K-Nearest Neighbors
+
+```{r}
+library(class)
+# k-Nearest Neighbors
+train_data <- train_set[, -ncol(train_set)]
+train_labels <- train_set[, ncol(train_set)]
+test_data <- test_set[, -ncol(test_set)]
+test_labels <- test_set[, ncol(test_set)]
+
+
+knn_pred <- knn(train_data, test_data, train_labels, k = 3)
+knn_accuracy <- sum(knn_pred == test_labels) / length(test_labels)
+print(paste("k-Nearest Neighbors Test Data Accuracy:", knn_accuracy))
+
+```
+4. Support Vector Machine (SVM)
+```{r}
+# Support Vector Machines
+# library(e1071)
+# svm_model <- svm(Y ~ ., data = train_set)
+# svm_pred <- predict(svm_model, test_set)
+# test_results <- cbind(test_set, svm_pred)
+# svm_accuracy <- sum(test_results$svm_pred == test_results$Y) / nrow(test_results)
+# print(paste("Support Vector Machines Test Data Accuracy:", svm_accuracy))
+```
+
